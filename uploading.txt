@@ -1,0 +1,48 @@
+const sheetName = 'Sheet1';
+const scriptProp = PropertiesService.getScriptProperties();
+
+function intialSetup() {
+  const activeSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  scriptProp.setProperty('key', activeSpreadsheet.getId());
+}
+
+function doPost(e) {
+  const lock = LockService.getScriptLock();
+  lock.tryLock(10000);
+
+  try {
+    const doc = SpreadsheetApp.openById(scriptProp.getProperty('key'));
+    const sheet = doc.getSheetByName(sheetName);
+
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const nextRow = sheet.getLastRow() + 1;
+
+    const newRow = headers.map(function(header) {
+      return header === 'Date' ? new Date() : e.parameter[header];
+    });
+
+    sheet.getRange(nextRow, 1, 1, newRow.length).setValues([newRow]);
+
+    // Send email notification
+    sendEmailNotification(newRow);
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ 'result': 'success', 'row': nextRow }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (e) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ 'result': 'error', 'error': e }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function sendEmailNotification(rowData) {
+  const recipientEmail = rowData[1]; // Assuming the email is in the second column
+  const subject = 'Data Submission Confirmation';
+  const message ='Thank you!\n\nWe have added your email to the early access queue.\n\nSpread the love by inviting your content creator friends so that they too can enjoy our early access and benefit from monetizing their digital content.\n\nSHARE: [Facebook icon], [Twitter icon], [Instagram icon], [WhatsApp icon]\n\nCheers,\nThe Peminute Team';
+  // Modify the email content as per your requirements
+
+  MailApp.sendEmail(recipientEmail, subject, message);
+}
